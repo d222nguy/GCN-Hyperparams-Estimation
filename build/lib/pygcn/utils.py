@@ -34,13 +34,10 @@ def load_data(path="../data/cora/", dataset="cora"):
 
     # build symmetric adjacency matrix
     adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+    print(adj)
     features = normalize(features)
     adj = normalize(adj + sp.eye(adj.shape[0]))
-    #adj_toarray = adj.toarray()
-    # print("============================================adj=========================================")
-    # print(adj)
-    # print("============================================adj^2========================================")
-    # print(np.dot(adj, adj))
+
     idx_train = range(140)
     idx_val = range(200, 500)
     idx_test = range(500, 1500)
@@ -81,5 +78,3 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
-if __name__ == "__main__":
-    load_data()
