@@ -8,70 +8,68 @@ import torch.nn.functional as F
 import torch.optim as optim
 from numpy.random import choice
 import numpy as np
-def generate_population(size, x_boundaries, y_boundaries):
-    lower_x, upper_x = x_boundaries
-    lower_y, upper_y = y_boundaries
-    population = []
-    for i in range(size):
-        individual = {
-            "x": random.uniform(lower_x, upper_x),
-            "y": random.uniform(lower_y, upper_y)
-        } 
-        population.append(individual)
-    return population
+W = 0.5
+c1 = 0.8
+c2 = 0.9
+n_iterations = 20
+target_error = 1e-6
+n_particles = 30
+class Particle():
+    def __init__(self):
+        #self.position = np.array([(-1) ** (bool(random.getrandbits(1))) * random.random()*50, (-1) ** (bool(random.getrandbits(1))) * random.random() * 50])
+        self.position = pso_generate_individual()
+        self.pbest_position = self.position
+        self.pbest_value = float('-inf')
+        self.velocity = pso_initial_velocity()
+    # def __str__(self):
+    #     print("I am at", self.position, " my pbest is ", self.pbest_position)
+    def move(self):
+        self.position = winsorize(add(self.position, self.velocity))
+    def get_fitness(self):
+        net = NetworkInstance(**self.position)
+        self.fitness = train(net)
+        #self.position["acc_val"] = self.fitness
+        return self.fitness
+    def __str__(self):
+        return "Position: n_hidden: {:.2f}, dropout: {:.3f}, lr: {:.4f}, weight_decay: {:.5f}, acc: {:.3f}".format(self.position["n_hidden"], self.position["dropout"], self.position["lr"], self.position["weight_decay"], self.fitness)
 
-def apply_function(individual):
-    x = individual["x"]
-    y = individual["y"]
-    return math.sin(math.sqrt(x ** 2 + y ** 2))
-def sorted_population_by_fitness(population):
-    return sorted(population, key = apply_function)
-def crossover(individual_a, individual_b):
-    xa = individual_a["x"]
-    ya = individual_a["y"]
+class Space():
+    def __init__(self, target, target_error, n_particles):
+        self.target = target
+        self.target_error = target_error
+        self.n_particles = n_particles
+        self.particles = []
+        self.gbest_value = float('-inf')
+        self.gbest_position = pso_generate_individual()
+    def print_particles(self):
+        for particle in self.particles:
+            #particle.__str__()
+            print(particle)
+    def fitness(self, particle):
+        return 1 #particle.position[0] ** 2 + particle.position[1] ** 2 + 1
+    def set_pbest(self):
+        for particle in self.particles:
+            particle.get_fitness()
+            #print(particle)
+            fitness_candidate = particle.fitness
+            if (particle.pbest_value < fitness_candidate):
+                particle.pbest_value = fitness_candidate
+                particle.pbest_position = particle.position
+    def set_gbest(self):
+        for particle in self.particles:
+            best_fitness_candidate = particle.fitness
+            if (self.gbest_value < best_fitness_candidate):
+                self.gbest_value = best_fitness_candidate
+                self.gbest_position = particle.position
+    def move_particles(self):
+        for particle in self.particles:
+            global W
+            new_velocity = add(add(scale(W, particle.velocity), scale(c1 * random.random(), subtract(particle.pbest_position, particle.position))), scale(c2 * random.random(),  subtract(self.gbest_position, particle.position)))
+            particle.velocity = new_velocity
+            particle.move()
+    def sort_particles_by_fitness(self):
+        self.particles = sorted_by_fitness_population(self.particles)
 
-    xb = individual_b["x"]
-    yb = individual_b["y"]
-
-    return {"x": (xa + xb)/2, "y": (ya + yb)/2}
-def mutate(individual):
-    next_x = individual["x"] + random.uniform(-0.05, 0.05)
-    next_y = individual["y"] + random.uniform(-0.05, 0.05)
-    lower_boundary, upper_boundary = (-4, 4)
-    next_x = min(max(next_x, lower_boundary), upper_boundary)
-    next_y = min(max(next_y, lower_boundary), upper_boundary)
-
-    return {"x": next_x, "y": next_y}
-def choice_by_roulette(sorted_population, fitness_sum):
-    offset = 0
-    normalized_fitness_sum = fitness_sum
-    lowest_fitness = apply_function(sorted_population[0])
-    if lowest_fitness < 0:
-        offset = -lowest_fitness
-        normalized_fitness_sum += offset * len(sorted_population)
-    draw = random.uniform(0, 1)
-    accumulated = 0
-    for individual in sorted_population:
-        fitness = apply_function(individual) + offset
-        probability = fitness / normalized_fitness_sum
-        accumulated += probability
-
-        if draw <= accumulated:
-            return individual
-def make_next_generation(previous_population):
-    next_generation = []
-    sorted_by_fitness_population = sorted_population_by_fitness(previous_population)
-    population_size = len(previous_population)
-    fitness_sum = sum(apply_function(individual) for individual in previous_population)
-
-    for i in range(population_size):
-        first_choice = choice_by_roulette(sorted_by_fitness_population, fitness_sum)
-        second_choice = choice_by_roulette(sorted_by_fitness_population, fitness_sum)
-
-        individual = crossover(first_choice, second_choice)
-        individual = mutate(individual)
-        next_generation.append(individual)
-    return next_generation
 def set_params_range(params_range):
     '''Set params range for all kinds of hyperparameters in the network'''
     params_range["n_hidden"]["lower"] = 5
@@ -90,7 +88,7 @@ def set_params_range(params_range):
     #     } 
     #     population.append(individual)
     return population
-def gcn_generate_individual():
+def pso_generate_individual():
     x = {}
     x = {"seed": 42,
         "nfeat": 1433,
@@ -102,6 +100,39 @@ def gcn_generate_individual():
         "weight_decay": random.uniform(-6, 1)
         }
     return x
+def pso_initial_velocity():
+    x = {}
+    x = {"seed": 0,
+        "nfeat": 0,
+        "nclass": 0,
+        "epochs": 0,
+        "n_hidden": 0,
+        "dropout": 0,
+        "lr": 0,
+        "weight_decay": 0
+        }
+    return x
+def scale(a, indi):
+    '''Scale all individual elements by scalar a'''
+    indi["n_hidden"] = int(a * indi["n_hidden"]) #Todo: make sure value after scale stay in MaxMin range
+    indi["dropout"] = a * indi["dropout"]
+    indi["lr"] *= a
+    indi["weight_decay"] *= a
+    return indi
+def add(a, b):
+    c = a.copy()
+    for key in a:
+        c[key] = a[key] + b[key]
+    return c
+def winsorize(indi):
+    indi["n_hidden"] = min(100, max(indi["n_hidden"], 5))
+    indi["dropout"] = min(1, max(indi["dropout"], 0))
+    return indi
+def subtract(a, b):
+    c = a.copy()
+    for key in a:
+        c[key] = a[key] - b[key]
+    return c
 def gcn_generate_population(size):
     population = []
     for i in range(size):
@@ -179,9 +210,9 @@ def train(network):
         #     'acc_val: {:.4f}'.format(acc_val.item()),
         #     'time: {:.4f}s'.format(time.time() - t))
     # print("Optimization Finished!")
-    # print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
+    print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 def sorted_by_fitness_population(population):
-    return sorted(population, key = lambda x: x["acc_val"])
+    return sorted(population, key = lambda x: x.fitness)
 def choice_by_fitness(sorted_population, prob):
     return choice(sorted_population, p = prob)
 def fitness(indi):
@@ -238,6 +269,7 @@ def short_print(indi):
         indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["acc_val"]
     ))
 if __name__ == '__main__':
+   
     adj, features, labels, idx_train, idx_val, idx_test = load_data()
 
     features = features.cuda()
@@ -252,38 +284,60 @@ if __name__ == '__main__':
     params["nclass"] = labels.max().item() + 1
     #params["nclass"] = 7
     set_params(params)
-    #pop = gcn_generate_population(10)
-    #print(pop[0], pop[8])
-    #a = gcn_crossover(pop[0], pop[8])
-    #print(a)
-    #print(gcn_mutation(a))
-    generations = 10
-    size = 30
-    population = gcn_generate_population(20)
-    for i in range(10):
-        print("=================================Gen #{0}===========================================".format(i))
-        print(len(population))
-        for indi in population:
-            net = NetworkInstance(**indi)
-            #train(net)
-            indi["acc_val"] = train(net)
-            #indi["acc_test"] = test(net)
-        population = sorted_by_fitness_population(population)
-        for indi in population:
-            #print(indi)
-            short_print(indi)
-        print_statistics(population)
-        if (i != 9):
-            population = gcn_make_next_generation(population)
-    population[-1]["epochs"] = 100
-    net = NetworkInstance(**(population[-1]))
+
+    search_space = Space(1, target_error, n_particles)
+    particles_vector = [Particle() for _ in range(search_space.n_particles)]
+    search_space.particles = particles_vector
+    #search_space.print_particles()
+    iteration = 0
+    while (iteration < n_iterations):
+        print("=============================Iteration {0}=========================".format(iteration))
+        search_space.set_pbest()
+        search_space.set_gbest()
+        search_space.sort_particles_by_fitness()
+        search_space.print_particles()
+        print('Best position: ', search_space.gbest_position)
+        print('Best fitness: ', search_space.gbest_value)
+        if (abs(search_space.gbest_value - search_space.target) <= search_space.target_error):
+            break
+        search_space.move_particles()
+        iteration += 1
+    print("The best solution is: ", search_space.gbest_position, " in n_iterations: ", iteration)
+    net = NetworkInstance(**search_space.gbest_position)
     train(net)
     print(test(net))
-    #print(gcn_crossover(pop[0], pop[8]))
-    
-    # net = NetworkInstance(**a)
+    # #pop = gcn_generate_population(10)
+    # #print(pop[0], pop[8])
+    # #a = gcn_crossover(pop[0], pop[8])
+    # #print(a)
+    # #print(gcn_mutation(a))
+    # generations = 10
+    # size = 30
+    # population = gcn_generate_population(20)
+    # for i in range(10):
+    #     print("=================================Gen #{0}===========================================".format(i))
+    #     print(len(population))
+    #     for indi in population:
+    #         net = NetworkInstance(**indi)
+    #         #train(net)
+    #         indi["acc_val"] = train(net)
+    #         #indi["acc_test"] = test(net)
+    #     population = sorted_by_fitness_population(population)
+    #     for indi in population:
+    #         #print(indi)
+    #         short_print(indi)
+    #     print_statistics(population)
+    #     if (i != 9):
+    #         population = gcn_make_next_generation(population)
+    # population[-1]["epochs"] = 100
+    # net = NetworkInstance(**(population[-1]))
     # train(net)
-    # test(net)
+    # print(test(net))
+    # #print(gcn_crossover(pop[0], pop[8]))
+    
+    # # net = NetworkInstance(**a)
+    # # train(net)
+    # # test(net)
 
-    #train.do()
-    #main()
+    # #train.do()
+    # #main()

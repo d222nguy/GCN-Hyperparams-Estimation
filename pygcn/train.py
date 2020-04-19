@@ -15,7 +15,7 @@ class NetworkInstance:
     def __init__(self, **kwargs):
         self.params = {}
         for key, value in kwargs.items():
-            print(key)
+            #print(key)
             self.params[key] = value
         self.make_model()
     def make_model(self):
@@ -34,7 +34,7 @@ class NetworkInstance:
                     nclass=self.params["nclass"],
                     dropout=self.params["dropout"])
         self.optimizer = optim.Adam(self.model.parameters(),
-                            lr=self.params["lr"], weight_decay=self.params["weight_decay"])
+                            lr=10 ** self.params["lr"], weight_decay=10 ** self.params["weight_decay"])
 
         self.model.cuda()
 
