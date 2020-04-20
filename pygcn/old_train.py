@@ -38,7 +38,7 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
 
-args.cuda = False
+args.cuda = True
 # Load data
 adj, features, labels, idx_train, idx_val, idx_test = load_data()
 # adjT = torch.transpose(adj, 0, 1)
@@ -106,3 +106,4 @@ def do():
 
     # Testing
     test()
+do()

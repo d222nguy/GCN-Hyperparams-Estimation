@@ -133,23 +133,7 @@ def subtract(a, b):
     for key in a:
         c[key] = a[key] - b[key]
     return c
-def gcn_generate_population(size):
-    population = []
-    for i in range(size):
-        population.append(gcn_generate_individual())
-    return population
-def gcn_crossover(A, B):
-    '''Perform crossover between individual A and individual B'''
-    #For every param, toss a coin to decide whether to inherit that param from father (A), or mother (B)
-    child = {}
-    fixed_list = ["seed", "nfeat", "nclass", "epochs"]
-    param_list = ["n_hidden", "dropout", "weight_decay", "lr"]
-    for param in fixed_list:
-        child[param] = A[param]
-    for param in param_list:
-        p = random.uniform(0, 1)
-        child[param] = A[param] if p > 0.5 else B[param]
-    return child
+
 def a_random(param):
     if param == "n_hidden":
         return random.randint(5, 50)
@@ -159,14 +143,6 @@ def a_random(param):
         return random.uniform(-6, 1)
     elif param == "weight_decay":
         return random.uniform(-6, 0)
-def gcn_mutation(A):
-    '''Perform mutation on individual A'''
-    param_list = ["n_hidden", "dropout", "weight_decay","lr"]
-    for param in param_list:
-        p = random.uniform(0, 1) #toss a coin, whether to mutate this param
-        if p < 0.05:
-            A[param] = a_random(param)
-    return A
 
 def main():
     generations = 100
@@ -218,27 +194,6 @@ def choice_by_fitness(sorted_population, prob):
 def fitness(indi):
     #return indi["acc_val"]/(1 - indi["acc_val"])
     return indi["acc_val"]
-def gcn_make_next_generation(sorted_population):
-    fitness_sum = 0
-    p = [-1 for i in range(len(sorted_population))]
-    new_population = []
-    for i in range(len(sorted_population)):
-        fitness_sum +=  i#fitness(sorted_population[i])
-    for i in range(len(sorted_population)):
-        #p[i] = fitness(sorted_population[i])/fitness_sum
-        p[i] = i/fitness_sum
-
-    #When fitnesses range are close, top individuals should be rewarded more
-
-    #print(p)
-    size = 30
-    for i in range(size):
-        father = choice_by_fitness(sorted_population, p)
-        mother = choice_by_fitness(sorted_population, p)
-        child = gcn_crossover(father, mother)
-        child = gcn_mutation(child)
-        new_population.append(child)
-    return new_population
 def test(network):
     model = network.model
     model.eval()

@@ -35,7 +35,6 @@ class NetworkInstance:
                     dropout=self.params["dropout"])
         self.optimizer = optim.Adam(self.model.parameters(),
                             lr=10 ** self.params["lr"], weight_decay=10 ** self.params["weight_decay"])
-
         self.model.cuda()
 
 #     def train(self, epoch):
