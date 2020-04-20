@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from numpy.random import choice
 import numpy as np
+import matplotlib.pyplot as plt
 def generate_population(size, x_boundaries, y_boundaries):
     lower_x, upper_x = x_boundaries
     lower_y, upper_y = y_boundaries
@@ -237,6 +238,34 @@ def short_print(indi):
     print("n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, acc: {:.3f}".format(
         indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["acc_val"]
     ))
+def simulate():
+    simulations = 10
+    generations = 10
+    values = np.zeros(generations)
+    size = 15
+    itr = range(generations)
+    for s in range(simulations):
+        print("===================Simulation- {0}===================".format(s))
+        population = gcn_generate_population(size)
+        optimality_tracking = []
+        for i in range(generations):
+            print("--Generation ", i)
+            for indi in population:
+                net = NetworkInstance(**indi)
+                indi["acc_val"] = train(net)
+            population = sorted_by_fitness_population(population)
+            # for indi in population:
+            #     short_print(indi)
+            print_statistics(population)
+            optimality_tracking.append(population[-1]["acc_val"])
+            if (i != generations - 1):
+                population = gcn_make_next_generation(population)
+        values += np.array(optimality_tracking)
+    values /= simulations
+    plt.plot(itr, values, lw = 0.5)
+    plt.show()
+    print(values)
+
 if __name__ == '__main__':
     adj, features, labels, idx_train, idx_val, idx_test = load_data()
 
@@ -257,33 +286,27 @@ if __name__ == '__main__':
     #a = gcn_crossover(pop[0], pop[8])
     #print(a)
     #print(gcn_mutation(a))
-    generations = 10
-    size = 30
-    population = gcn_generate_population(20)
-    for i in range(10):
-        print("=================================Gen #{0}===========================================".format(i))
-        print(len(population))
-        for indi in population:
-            net = NetworkInstance(**indi)
-            #train(net)
-            indi["acc_val"] = train(net)
-            #indi["acc_test"] = test(net)
-        population = sorted_by_fitness_population(population)
-        for indi in population:
-            #print(indi)
-            short_print(indi)
-        print_statistics(population)
-        if (i != 9):
-            population = gcn_make_next_generation(population)
-    population[-1]["epochs"] = 100
-    net = NetworkInstance(**(population[-1]))
-    train(net)
-    print(test(net))
-    #print(gcn_crossover(pop[0], pop[8]))
-    
-    # net = NetworkInstance(**a)
-    # train(net)
-    # test(net)
+    simulate()
 
-    #train.do()
-    #main()
+    # generations = 10
+    # size = 30
+    # population = gcn_generate_population(20)
+    # for i in range(10):
+    #     print("=================================Gen #{0}===========================================".format(i))
+    #     print(len(population))
+    #     for indi in population:
+    #         net = NetworkInstance(**indi)
+    #         #train(net)
+    #         indi["acc_val"] = train(net)
+    #         #indi["acc_test"] = test(net)
+    #     population = sorted_by_fitness_population(population)
+    #     for indi in population:
+    #         #print(indi)
+    #         short_print(indi)
+    #     print_statistics(population)
+    #     if (i != 9):
+    #         population = gcn_make_next_generation(population)
+    # population[-1]["epochs"] = 100
+    # net = NetworkInstance(**(population[-1]))
+    # train(net)
+    # print(test(net))

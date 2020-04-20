@@ -7,13 +7,14 @@ from pygcn.models import GCN
 import torch.nn.functional as F
 import torch.optim as optim
 from numpy.random import choice
+import matplotlib.pyplot as plt
 import numpy as np
 W = 0.5
 c1 = 0.8
 c2 = 0.9
-n_iterations = 20
+n_iterations = 10
 target_error = 1e-6
-n_particles = 30
+n_particles = 10
 class Particle():
     def __init__(self):
         #self.position = np.array([(-1) ** (bool(random.getrandbits(1))) * random.random()*50, (-1) ** (bool(random.getrandbits(1))) * random.random() * 50])
@@ -240,59 +241,36 @@ if __name__ == '__main__':
     #params["nclass"] = 7
     set_params(params)
 
-    search_space = Space(1, target_error, n_particles)
-    particles_vector = [Particle() for _ in range(search_space.n_particles)]
-    search_space.particles = particles_vector
+
     #search_space.print_particles()
     iteration = 0
-    while (iteration < n_iterations):
-        print("=============================Iteration {0}=========================".format(iteration))
-        search_space.set_pbest()
-        search_space.set_gbest()
-        search_space.sort_particles_by_fitness()
-        search_space.print_particles()
-        print('Best position: ', search_space.gbest_position)
-        print('Best fitness: ', search_space.gbest_value)
-        if (abs(search_space.gbest_value - search_space.target) <= search_space.target_error):
-            break
-        search_space.move_particles()
-        iteration += 1
-    print("The best solution is: ", search_space.gbest_position, " in n_iterations: ", iteration)
-    net = NetworkInstance(**search_space.gbest_position)
-    train(net)
-    print(test(net))
-    # #pop = gcn_generate_population(10)
-    # #print(pop[0], pop[8])
-    # #a = gcn_crossover(pop[0], pop[8])
-    # #print(a)
-    # #print(gcn_mutation(a))
-    # generations = 10
-    # size = 30
-    # population = gcn_generate_population(20)
-    # for i in range(10):
-    #     print("=================================Gen #{0}===========================================".format(i))
-    #     print(len(population))
-    #     for indi in population:
-    #         net = NetworkInstance(**indi)
-    #         #train(net)
-    #         indi["acc_val"] = train(net)
-    #         #indi["acc_test"] = test(net)
-    #     population = sorted_by_fitness_population(population)
-    #     for indi in population:
-    #         #print(indi)
-    #         short_print(indi)
-    #     print_statistics(population)
-    #     if (i != 9):
-    #         population = gcn_make_next_generation(population)
-    # population[-1]["epochs"] = 100
-    # net = NetworkInstance(**(population[-1]))
-    # train(net)
-    # print(test(net))
-    # #print(gcn_crossover(pop[0], pop[8]))
-    
-    # # net = NetworkInstance(**a)
-    # # train(net)
-    # # test(net)
-
-    # #train.do()
-    # #main()
+    simulations = 10
+    values = np.zeros(n_iterations)
+    itr = range(n_iterations)
+    for _ in range(simulations):
+        optimality_tracking = []
+        iteration = 0
+        search_space = Space(1, target_error, n_particles)
+        particles_vector = [Particle() for _ in range(search_space.n_particles)]
+        search_space.particles = particles_vector   
+        while (iteration < n_iterations):
+            print("=============================Iteration {0}=========================".format(iteration))
+            search_space.set_pbest()
+            search_space.set_gbest()
+            search_space.sort_particles_by_fitness()
+            search_space.print_particles()
+            print('Best position: ', search_space.gbest_position)
+            print('Best fitness: ', search_space.gbest_value)
+            # if (abs(search_space.gbest_value - search_space.target) <= search_space.target_error):
+            #     break
+            optimality_tracking.append(search_space.gbest_value)
+            search_space.move_particles()
+            iteration += 1
+        print('opt track: ', optimality_tracking)
+        values += np.array(optimality_tracking)
+        print('values: ', values)
+        #print("The best solution is: ", search_space.gbest_position, " in n_iterations: ", iteration)
+    values /= simulations
+    plt.plot(itr, values, lw = 0.5)
+    plt.show()
+    print(values)

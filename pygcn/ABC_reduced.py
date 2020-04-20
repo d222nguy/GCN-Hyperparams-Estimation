@@ -7,6 +7,7 @@ from pygcn.models import GCN
 import torch.nn.functional as F
 import torch.optim as optim
 from numpy.random import choice
+import matplotlib.pyplot as plt
 import numpy as np
 from copy import deepcopy
 W = 0.5
@@ -58,7 +59,7 @@ class OnlookerBee(Bee):
     def __exploit(self, candidate, fitness, max_trials):
         pass
 class ABC(object):
-    def __init__(self,colony_size = 10, n_iter = 2, max_trials = 10):
+    def __init__(self,colony_size = 12, n_iter = 10, max_trials = 6):
         self.colony_size = colony_size
         self.n_iter = n_iter
         self.max_trials = max_trials
@@ -72,11 +73,11 @@ class ABC(object):
         self.optimality_tracking.append(self.optimal_solution.fitness)
     def __update_optimal_solution(self):
         n_optimal_solution = max(self.onlooker_bees + self.employee_bees, key = lambda bee: bee.fitness)
-        print('n_optimal_solution fitness: ', n_optimal_solution.fitness)
+        #print('n_optimal_solution fitness: ', n_optimal_solution.fitness)
         if not self.optimal_solution:
             self.optimal_solution = deepcopy(n_optimal_solution)
         else:
-            if n_optimal_solution.fitness < self.optimal_solution.fitness:
+            if n_optimal_solution.fitness > self.optimal_solution.fitness:
                 self.optimal_solution = deepcopy(n_optimal_solution)
     def __initialize_employees(self):
         self.employee_bees = []
@@ -108,14 +109,32 @@ class ABC(object):
         self.best_food_sources = list(filter (lambda bee: bee.prob > np.random.uniform(low = 0, high = 1), self.employee_bees))
         while not self.best_food_sources:
             self.best_food_sources = list(filter(lambda bee: bee.prob > np.random.uniform(low = 0, high = 1), self.employee_bees))
-        print("=========List of best food sources==============")
-        for bee in self.best_food_sources:
-            print(bee)
-        print("=========End of list of best sources=============")
+        # print("len = ", len(self.best_food_sources))
+        # print("=========List of best food sources==============")
+        # for bee in self.best_food_sources:
+        #     print(bee)
+        # print("=========End of list of best sources=============")
     def __onlooker_bees_phase(self):
         #for each onlooker bee: choose a source (based on probabilities) to exploit
+
+        #Calculate probabilities
+        p = []
+        s = sum(map(lambda x: x.fitness, self.best_food_sources))
+        for bee in self.best_food_sources:
+            p.append(bee.fitness/s)
+
         for bee in self.onlooker_bees:
-            bee.onlook(self.best_food_sources, self.max_trials)
+            if bee.trial <= self.max_trials:
+                #Pick candidate
+                candidate = np.random.choice(self.best_food_sources, p = p)
+                n_pos = candidate.pos.copy()
+                a_random_source = random.choice(self.employee_bees).pos
+                param = random.choice(["lr", "weight_decay", "n_hidden", "dropout"])
+                phi = np.random.uniform(low=-1, high=1)
+                n_pos[param] = n_pos[param] + phi * (n_pos[param] - a_random_source[param])
+                n_pos = winsorize(n_pos)
+                fitness = get_fitness(n_pos)
+                bee.update_bee(n_pos, fitness)
         #TODO: Correct this (exploit function still doesn't have function body)
     def __scout_bee_phase(self):
         for bee in self.employee_bees + self.onlooker_bees:
@@ -127,25 +146,28 @@ class ABC(object):
         # for bee in self.onlooker_bees:
         #     print(bee.pos, bee.fitness)
         for itr in range(self.n_iter):
-            print("**************************Iteration {0}***************************".format(itr))
-            print("========Employee bees=======")
-            for bee in self.employee_bees:
-                print(bee)
-            print("========Onlooker bees=======")
-            for bee in self.onlooker_bees:
-                print(bee)
+            #print("**************************Iteration {0}***************************".format(itr))
+            # print("========Employee bees=======")
+            # for bee in self.employee_bees:
+            #     print(bee)
+            # print("========Onlooker bees=======")
+            # for bee in self.onlooker_bees:
+            #     print(bee)
             self.__employee_bees_phase()
             self.__update_optimal_solution()
             self.__calculate_probabilities()
-            print("========Employee bees, after employee phase=======")
-            for bee in self.employee_bees:
-                print(bee)
-            print('============Probabilities============')
-            for bee in self.employee_bees:
-                print(bee.prob)
+            # print("========Employee bees, after employee phase=======")
+            # for bee in self.employee_bees:
+            #     print(bee)
+            # print('============Probabilities============')
+            # for bee in self.employee_bees:
+            #     print(bee.prob)
             self.__select_best_food_sources()
 
             self.__onlooker_bees_phase()
+            # print("========Onlooker bees, after onlooker phase=======")
+            # for bee in self.onlooker_bees:
+            #     print(bee)
             self.__scout_bee_phase()
     
             self.__update_optimal_solution()
@@ -269,6 +291,18 @@ if __name__ == '__main__':
     #params["nclass"] = 7
     set_params(params)
 
-    abc = ABC()
-    abc.optimize()
+    #simulate:
+    simulations = 8
+    n_iter = 10
+    values = np.zeros(n_iter)
+    itr = range(n_iter)
+    for _ in range(simulations):
+        abc = ABC(n_iter = n_iter, colony_size = 8)
+        abc.optimize()
+        values += np.array(abc.optimality_tracking)
+    values /= simulations
+    plt.plot(itr, values, lw = 0.5)
+    plt.show()
+    print(values)
+
 
