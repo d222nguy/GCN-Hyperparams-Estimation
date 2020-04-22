@@ -145,22 +145,6 @@ def a_random(param):
     elif param == "weight_decay":
         return random.uniform(-6, 0)
 
-def main():
-    generations = 100
-    population = generate_population(size = 10, x_boundaries = (-4, 4), y_boundaries = (-4, 4))
-    i = 1
-    while True:
-        print(f" Generation {i}")
-        for individual in population:
-            print(individual)
-        if i == generations:
-            break
-        i += 1
-        population = make_next_generation(population)
-    best_individual = sorted_population_by_fitness(population)[-1]
-    print("\n FINAL RESULT")
-    print(best_individual, apply_function(best_individual))
-
 def train(network):
     t_total = time.time()
     model = network.model

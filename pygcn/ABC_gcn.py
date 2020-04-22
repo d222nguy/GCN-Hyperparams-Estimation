@@ -7,6 +7,7 @@ from abc import abstractmethod
 from six import add_metaclass
 import matplotlib.pyplot as plt
 from copy import deepcopy
+import config
 @add_metaclass(ABCMeta)
 class ObjectiveFunction(object):
     def __init__(self, name, dim, minf, maxf):
