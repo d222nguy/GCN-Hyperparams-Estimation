@@ -23,6 +23,7 @@ simulations = 1
 class Bee(object):
     def __init__(self):
         self.pos = abc_generate_individual()
+        #print(self.pos)
         self.fitness = get_fitness(self.pos)
         self.trial = 0
         self.prob = 0
@@ -45,7 +46,7 @@ class Bee(object):
         return "Position: n_hidden: {:.2f}, dropout: {:.3f}, lr: {:.4f}, weight_decay: {:.5f}, acc: {:.3f}".format(self.pos["n_hidden"], self.pos["dropout"], self.pos["lr"], self.pos["weight_decay"], self.fitness)
 def get_fitness(params):
     net = NetworkInstance(**params)
-    fitness = train(net)
+    fitness, _ = train(net)
     return fitness
 class EmployeeBee(Bee):
     def explore(self, max_trials):
@@ -86,7 +87,8 @@ class ABC(object):
     def __initialize_employees(self):
         self.employee_bees = []
         for itr in range(self.colony_size // 2):
-            self.employee_bees.append(EmployeeBee())
+            e = EmployeeBee()
+            self.employee_bees.append(e)
     def __initialize_onlookers(self):
         self.onlooker_bees = []
         for itr in range(self.colony_size // 2):
@@ -151,12 +153,12 @@ class ABC(object):
         #     print(bee.pos, bee.fitness)
         for itr in range(self.n_iter):
             #print("**************************Iteration {0}***************************".format(itr))
-            # print("========Employee bees=======")
-            # for bee in self.employee_bees:
-            #     print(bee)
-            # print("========Onlooker bees=======")
-            # for bee in self.onlooker_bees:
-            #     print(bee)
+            print("========Employee bees=======")
+            for bee in self.employee_bees:
+                print(bee)
+            print("========Onlooker bees=======")
+            for bee in self.onlooker_bees:
+                print(bee)
             self.__employee_bees_phase()
             self.__update_optimal_solution()
             self.__calculate_probabilities()
@@ -193,6 +195,9 @@ def abc_generate_individual():
         "lr": random.uniform(cf.lr_low, cf.lr_high),
         "weight_decay": random.uniform(cf.weight_decay_low, cf.weight_decay_high)
         }
+    # for i in range(100):
+    #     print(random.randint(cf.epochs_low, cf.epochs_high))
+    #print(x["epochs"])
     return x
 
 def scale(a, indi):
@@ -226,7 +231,9 @@ def train(network):
     losses_val = []
     #train
     epochs = network.params["epochs"]  
-    set_seed(network.params["seed"])
+    torch.cuda.manual_seed(network.params["seed"])
+    torch.manual_seed(network.params["seed"])
+    np.random.seed(network.params["seed"])
     iter_since_best = 0
     best_loss_val = 10**9
     #min_epoch_ = min(min_epoch, epochs)
@@ -324,22 +331,24 @@ def set_seed(seed):
     random.seed(seed)
 if __name__ == '__main__':
     set_seed(cf.seed)
+    
     adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
-
     features = features.cuda()
     adj = adj.cuda()
     labels = labels.cuda()
     idx_train = idx_train.cuda()
     idx_val = idx_val.cuda()
     idx_test = idx_test.cuda()
-    
-    params = {}
-    params["nfeat"] = features.shape[1]
-    params["nclass"] = labels.max().item() + 1
-    nfeat = params["nfeat"]
-    nclass = params["nclass"]
+    nfeat = features.shape[1]
+    nclass = labels.max().item() + 1
+    # for i in range(10):
+    #     print(abc_generate_individual())
+    # params = {}
+    # params["nfeat"] = features.shape[1]
+    # params["nclass"] = labels.max().item() + 1
+   
     #params["nclass"] = 7
-    set_params(params)
+    #set_params(params)
     simulate()
     #simulate:
     # simulations = 1

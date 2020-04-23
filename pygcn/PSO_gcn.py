@@ -162,7 +162,9 @@ def train(network):
     losses_val = []
     #train
     epochs = network.params["epochs"]  
-    set_seed(network.params["seed"])
+    torch.cuda.manual_seed(network.params["seed"])
+    torch.manual_seed(network.params["seed"])
+    np.random.seed(network.params["seed"])
     iter_since_best = 0
     best_loss_val = 10**9
     #min_epoch_ = min(min_epoch, epochs)
@@ -229,11 +231,6 @@ def short_print(indi):
        print("epochs: {:.2f}, n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, fitness: {:.3f}".format(
         indi["epochs"], indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["fitness"]
     ))
-def set_seed(seed):
-    np.random.seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.manual_seed(seed)
-    random.seed(seed)
 def run_pso(values, best, optimal_sol):
     iteration = 0
     search_space = Space(1, n_particles)
@@ -268,23 +265,22 @@ def simulate():
     for s in range(simulations):
         print("===================Simulation- {0}===================".format(s))
         values, best, optimal_sol = run_pso(values, best, optimal_sol)
-    #optimal_sol["epochs"] = 200
-    print('best = ', best)
+        print('best = ', best)
     print('optimal_sol = ', optimal_sol)
-    s = 0
-    for i in range(10):
-        net = NetworkInstance(**optimal_sol)
-        train(net)
-        s += test(net)
-    s /= 100
+    net = NetworkInstance(**optimal_sol)
+    train(net)
+    s = test(net)    
     print(s)
     values /= simulations
     plt.plot(itr, values, lw = 0.5)
     plt.show()
     print(values)
 if __name__ == '__main__':
-    set_seed(cf.seed)
-    adj, features, labels, idx_train, idx_val, idx_test = load_data("pubmed")
+    np.random.seed(cf.seed)
+    torch.cuda.manual_seed(cf.seed)
+    torch.manual_seed(cf.seed) #seed for training GCN, keep it the same as in original paper
+    random.seed(cf.seed) # this is seed for GA
+    adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
 
     features = features.cuda()
     adj = adj.cuda()

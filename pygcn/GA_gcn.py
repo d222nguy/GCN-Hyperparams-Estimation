@@ -114,11 +114,6 @@ def get_fitness_time(network, n_tries):
         if (p < cf.fitness_cutoff):
             break
     return s/(i + 1), (s - alpha*t)/(i + 1), t/(i + 1)
-def set_seed(seed):
-    np.random.seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.manual_seed(seed)
-    random.seed(seed)
 def train(network):
     t_total = time.time()
     #network.make_model()
@@ -127,7 +122,9 @@ def train(network):
     losses_val = []
     #train
     epochs = network.params["epochs"]  
-    set_seed(network.params["seed"])
+    torch.cuda.manual_seed(network.params["seed"])
+    torch.manual_seed(network.params["seed"])
+    np.random.seed(network.params["seed"])
     iter_since_best = 0
     best_loss_val = 10**9
     #min_epoch_ = min(min_epoch, epochs)
@@ -176,10 +173,10 @@ def gcn_make_next_generation(sorted_population, size):
     p = [-1 for i in range(len(sorted_population))]
     new_population = []
     for i in range(len(sorted_population)):
-        fitness_sum +=  i#fitness(sorted_population[i])
+        fitness_sum += (fitness(sorted_population[i]) - fitness(sorted_population[0]))  #fitness(sorted_population[i])
     for i in range(len(sorted_population)):
         #p[i] = fitness(sorted_population[i])/fitness_sum
-        p[i] = i/fitness_sum
+        p[i] = (fitness(sorted_population[i]) - fitness(sorted_population[0]))/fitness_sum
 
     #When fitnesses range are close, top individuals should be rewarded more
 
@@ -265,7 +262,10 @@ def simulate():
     print(values)
 
 if __name__ == '__main__':
-    set_seed(cf.seed)
+    np.random.seed(cf.seed)
+    torch.cuda.manual_seed(cf.seed)
+    torch.manual_seed(cf.seed) #seed for training GCN, keep it the same as in original paper
+    random.seed(1) # this is seed for GA
     adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
 
     features = features.cuda()
