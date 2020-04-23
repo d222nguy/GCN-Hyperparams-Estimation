@@ -10,12 +10,16 @@ from numpy.random import choice
 import matplotlib.pyplot as plt
 import numpy as np
 from copy import deepcopy
-W = 0.5
-c1 = 0.8
-c2 = 0.9
+import torch
+import config as cf
+global nfeat
+global nclass
 n_iterations = 20
 target_error = 1e-6
 n_particles = 30
+min_epoch = cf.min_epoch
+early_stop = cf.early_stop
+simulations = 1
 class Bee(object):
     def __init__(self):
         self.pos = abc_generate_individual()
@@ -177,15 +181,17 @@ class ABC(object):
                 .format(itr, "%04.03e" % self.optimal_solution.fitness))
 
 def abc_generate_individual():
+    global nfeat
+    global nclass
     x = {}
-    x = {"seed": 42,
-        "nfeat": 1433,
-        "nclass": 7,
-        "epochs": 10,
-        "n_hidden": random.randint(5, 80),
-        "dropout": random.uniform(0.1, 0.8),
-        "lr": random.uniform(-6, 1),
-        "weight_decay": random.uniform(-6, 1)
+    x = {"seed": cf.seed,
+        "nfeat": nfeat,
+        "nclass": nclass,
+        "epochs": random.randint(cf.epochs_low, cf.epochs_high),
+        "n_hidden": random.randint(cf.n_hidden_low, cf.n_hidden_high),
+        "dropout": random.uniform(cf.dropout_low, cf.dropout_high),
+        "lr": random.uniform(cf.lr_low, cf.lr_high),
+        "weight_decay": random.uniform(cf.weight_decay_low, cf.weight_decay_high)
         }
     return x
 
@@ -202,8 +208,9 @@ def add(a, b):
         c[key] = a[key] + b[key]
     return c
 def winsorize(indi):
-    indi["n_hidden"] = int(min(100, max(indi["n_hidden"], 5)))
-    indi["dropout"] = min(1, max(indi["dropout"], 0))
+    indi["n_hidden"] = int(min(cf.n_hidden_high, max(indi["n_hidden"], cf.n_hidden_low)))
+    indi["dropout"] = min(cf.dropout_high, max(indi["dropout"], cf.dropout_low))
+    indi["epochs"] = int(min(cf.epochs_high, max(indi["epochs"], cf.epochs_low)))
     return indi
 def subtract(a, b):
     c = a.copy()
@@ -213,10 +220,16 @@ def subtract(a, b):
 
 def train(network):
     t_total = time.time()
+    #network.make_model()
     model = network.model
     optimizer = network.optimizer
+    losses_val = []
     #train
-    epochs = network.params["epochs"]
+    epochs = network.params["epochs"]  
+    set_seed(network.params["seed"])
+    iter_since_best = 0
+    best_loss_val = 10**9
+    #min_epoch_ = min(min_epoch, epochs)
     for i in range(epochs):
         t = time.time()
         model.train()
@@ -227,17 +240,23 @@ def train(network):
         loss_train.backward()
         optimizer.step()
 
+        model.eval()
+        output = model(features, adj)
         loss_val = F.nll_loss(output[idx_val], labels[idx_val])
+        if (loss_val.item() < best_loss_val):
+            iter_since_best = 0
+            best_loss_val = loss_val.item()
+        else:
+            iter_since_best += 1
+        losses_val.append(loss_val.item())
         acc_val = accuracy(output[idx_val], labels[idx_val])
-    #print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
-    return acc_val.item()
-        # print('Epoch: {:04d}'.format(i+1),
-        #     'loss_train: {:.4f}'.format(loss_train.item()),
-        #     'acc_train: {:.4f}'.format(acc_train.item()),
-        #     'loss_val: {:.4f}'.format(loss_val.item()),
-        #     'acc_val: {:.4f}'.format(acc_val.item()),
-        #     'time: {:.4f}s'.format(time.time() - t))
+        if i > min_epoch and iter_since_best > early_stop:
+            print("Early stopping at...", i, " over ", epochs)
+            break
+    #print('Time: ', time.time() - t_total)
+    return acc_val.item(), time.time() - t_total
     # print("Optimization Finished!")
+    # print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 def sorted_by_fitness_population(population):
     return sorted(population, key = lambda x: x.fitness)
 def choice_by_fitness(sorted_population, prob):
@@ -271,12 +290,41 @@ def print_statistics(population):
     print("Average fitness: ", np.mean(f))
     print("Medium fitness: ", np.median(f))
 def short_print(indi):
-    print("n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, acc: {:.3f}".format(
-        indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["acc_val"]
+       print("epochs: {:.2f}, n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, fitness: {:.3f}".format(
+        indi["epochs"], indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["fitness"]
     ))
+def simulate():
+    values = np.zeros(n_iterations)
+    itr = range(n_iterations)
+    best = 0
+    for s in range(simulations):
+        abc = ABC(n_iter = n_iterations, colony_size = cf.colony_size)
+        abc.optimize()
+        if abc.optimal_solution.fitness > best:
+            best = abc.optimal_solution.fitness
+            optimal_sol = abc.optimal_solution.pos
+        values += np.array(abc.optimality_tracking)
+    print('best = ', best)
+    print('optimal_sol = ', optimal_sol)
+    s = 0
+    for i in range(10):
+        net = NetworkInstance(**optimal_sol)
+        train(net)
+        s += test(net)
+    s /= 100
+    print(s)
+    values /= simulations
+    plt.plot(itr, values, lw = 0.5)
+    plt.show()
+    print(values)
+def set_seed(seed):
+    np.random.seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
 if __name__ == '__main__':
-   
-    adj, features, labels, idx_train, idx_val, idx_test = load_data()
+    set_seed(cf.seed)
+    adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
 
     features = features.cuda()
     adj = adj.cuda()
@@ -286,23 +334,24 @@ if __name__ == '__main__':
     idx_test = idx_test.cuda()
     
     params = {}
-    params["nfeat"] = 1433 #features.shape[1]
-    params["nclass"] = 7 #labels.max().item() + 1
+    params["nfeat"] = features.shape[1]
+    params["nclass"] = labels.max().item() + 1
+    nfeat = params["nfeat"]
+    nclass = params["nclass"]
     #params["nclass"] = 7
     set_params(params)
-
+    simulate()
     #simulate:
-    simulations = 8
-    n_iter = 10
-    values = np.zeros(n_iter)
-    itr = range(n_iter)
-    for _ in range(simulations):
-        abc = ABC(n_iter = n_iter, colony_size = 8)
-        abc.optimize()
-        values += np.array(abc.optimality_tracking)
-    values /= simulations
-    plt.plot(itr, values, lw = 0.5)
-    plt.show()
-    print(values)
+    # simulations = 1
+    # values = np.zeros(n_iterations)
+    # itr = range(n_iterations)
+    # for _ in range(simulations):
+    #     abc = ABC(n_iter = n_iterations, colony_size = cf.colony_size)
+    #     abc.optimize()
+    #     values += np.array(abc.optimality_tracking)
+    # values /= simulations
+    # plt.plot(itr, values, lw = 0.5)
+    # plt.show()
+    # print(values)
 
 

@@ -244,13 +244,12 @@ def simulate():
     values = np.zeros(generations)
     itr = range(generations)
     optimal_sol = gcn_generate_individual()
-    optimality_tracking = []
     best = 0
     for s in range(simulations):
         optimality_tracking = []
         print("===================Simulation- {0}===================".format(s))
         optimality_tracking, values, best, optimal_sol = run_ga(optimality_tracking, values, best, optimal_sol)
-    optimal_sol["epochs"] = 200
+    #optimal_sol["epochs"] = 200
     print('best = ', best)
     print('optimal_sol = ', optimal_sol)
     s = 0
@@ -266,6 +265,7 @@ def simulate():
     print(values)
 
 if __name__ == '__main__':
+    set_seed(cf.seed)
     adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
 
     features = features.cuda()
@@ -280,7 +280,6 @@ if __name__ == '__main__':
     params["nclass"] = labels.max().item() + 1
     nfeat = params["nfeat"]
     nclass = params["nclass"]
-    set_seed(cf.seed)
     simulate()
     # res = 0
     # params["epochs"] = 200

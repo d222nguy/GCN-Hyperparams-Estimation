@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-
+import config as cf
 from pygcn.models import GCN
 class NetworkInstance:
     def __init__(self, **kwargs):
@@ -20,8 +20,8 @@ class NetworkInstance:
     def make_model(self):
 
 
-        np.random.seed(self.params["seed"])
-        torch.cuda.manual_seed(self.params["seed"])
+        np.random.seed(cf.seed)
+        torch.cuda.manual_seed(cf.seed)
 
         # Model and optimizer
         self.model = GCN(nfeat=self.params["nfeat"],
