@@ -279,8 +279,8 @@ if __name__ == '__main__':
     np.random.seed(cf.seed)
     torch.cuda.manual_seed(cf.seed)
     torch.manual_seed(cf.seed) #seed for training GCN, keep it the same as in original paper
-    random.seed(cf.seed) # this is seed for GA
-    adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
+    random.seed(2) # this is seed for PSO
+    adj, features, labels, idx_train, idx_val, idx_test = load_data("pubmed")
 
     features = features.cuda()
     adj = adj.cuda()
@@ -289,44 +289,6 @@ if __name__ == '__main__':
     idx_val = idx_val.cuda()
     idx_test = idx_test.cuda()
     
-    # params = {}
-    # params["nfeat"] = features.shape[1]
-    # params["nclass"] = labels.max().item() + 1
     nfeat = features.shape[1]
     nclass = labels.max().item() + 1
-    #params["nclass"] = 7
     simulate()
-    #search_space.print_particles()
-    # iteration = 0
-    # simulations = 1
-    # values = np.zeros(n_iterations)
-    # itr = range(n_iterations)
-    # optimal_sol = pso_generate_individual()
-    # best = 0
-    # for _ in range(simulations):
-    #     optimality_tracking = []
-    #     iteration = 0
-    #     search_space = Space(1, n_particles)
-    #     particles_vector = [Particle() for _ in range(search_space.n_particles)]
-    #     search_space.particles = particles_vector   
-    #     while (iteration < n_iterations):
-    #         print("=============================Iteration {0}=========================".format(iteration))
-    #         search_space.set_pbest()
-    #         search_space.set_gbest()
-    #         search_space.sort_particles_by_fitness()
-    #         search_space.print_particles()
-    #         print('Best position: ', search_space.gbest_position)
-    #         print('Best fitness: ', search_space.gbest_value)
-    
-    #         optimality_tracking.append(search_space.gbest_value)
-    #         search_space.move_particles()
-    #         iteration += 1
-    #     print('opt track: ', optimality_tracking)
-    #     values += np.array(optimality_tracking)
-    #     print('values: ', values)
-    #     #print("The best solution is: ", search_space.gbest_position, " in n_iterations: ", iteration)
-    # values /= simulations
-    # plt.plot(itr, values, lw = 0.5)
-    # plt.show()
-    # print(values)
-

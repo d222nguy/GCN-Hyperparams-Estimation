@@ -13,6 +13,7 @@ seed = 28
 early_stop = 20
 min_epoch = 50
 alpha = 0.1
+epsilon = 0.001
 #sample
 sample_epochs = 200
 sample_nhidden = 16
@@ -20,7 +21,8 @@ sample_dropout = 0.5
 sample_lr = np.log10(0.01)
 sample_weight_decay = -4 +  np.log10(5)
 #ga
-time_out = 1
+countTime = 0
+time_out = 0.5
 simulations = 1
 generations = 10
 size = 15
@@ -28,4 +30,6 @@ mutation_rate = 0.1
 fitness_cutoff = 0.5
 #pso
 n_iterations = 10
-n_particles = 10
+n_particles = 15
+#abc
+colony_size = 14

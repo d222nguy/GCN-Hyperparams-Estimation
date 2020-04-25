@@ -14,7 +14,7 @@ import torch
 import config as cf
 global nfeat
 global nclass
-n_iterations = 20
+n_iterations = cf.n_iterations
 target_error = 1e-6
 n_particles = 30
 min_epoch = cf.min_epoch
@@ -43,6 +43,7 @@ class Bee(object):
         self.trial = 10
         self.prob = 0
     def __str__(self):
+        print(self.pos, self.fitness)
         return "Position: n_hidden: {:.2f}, dropout: {:.3f}, lr: {:.4f}, weight_decay: {:.5f}, acc: {:.3f}".format(self.pos["n_hidden"], self.pos["dropout"], self.pos["lr"], self.pos["weight_decay"], self.fitness)
 def get_fitness(params):
     net = NetworkInstance(**params)
@@ -281,13 +282,6 @@ def test(network):
           "loss= {:.4f}".format(loss_test.item()),
           "accuracy= {:.4f}".format(acc_test.item()))
     return acc_test.item()
-def set_params(params):
-    params["epochs"] = 200
-    params["lr"] = 0.01
-    params["weight_decay"] = 5e-4
-    params["n_hidden"] = 16
-    params["dropout"] = 0.2
-    params["seed"] = 42
 def print_statistics(population):
     #Mean
     f = []
@@ -315,24 +309,23 @@ def simulate():
     print('optimal_sol = ', optimal_sol)
     s = 0
     for i in range(10):
+        print(optimal_sol)
         net = NetworkInstance(**optimal_sol)
         train(net)
         s += test(net)
-    s /= 100
+    s /= 10
     print(s)
     values /= simulations
     plt.plot(itr, values, lw = 0.5)
     plt.show()
     print(values)
-def set_seed(seed):
-    np.random.seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.manual_seed(seed)
-    random.seed(seed)
 if __name__ == '__main__':
-    set_seed(cf.seed)
+    np.random.seed(cf.seed)
+    torch.cuda.manual_seed(cf.seed)
+    torch.manual_seed(cf.seed)
+    random.seed(3)
     
-    adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
+    adj, features, labels, idx_train, idx_val, idx_test = load_data("pubmed")
     features = features.cuda()
     adj = adj.cuda()
     labels = labels.cuda()
@@ -350,6 +343,28 @@ if __name__ == '__main__':
     #params["nclass"] = 7
     #set_params(params)
     simulate()
+     
+    # params = {}
+    # params["nfeat"] = features.shape[1]
+    # params["nclass"] = labels.max().item() + 1
+    # nfeat = params["nfeat"]
+    # nclass = params["nclass"]
+    
+    # params["epochs"] = 250
+    # params["n_hidden"] = 74
+    # params["dropout"] = 0.723
+    # params["weight_decay"] = -1.818
+    # params["lr"] = -3.647
+    # params["seed"] = cf.seed
+    # s = 0
+    # t = 0
+    # for i in range(10):
+    #     net = NetworkInstance(**params)
+    #     a, c = train(net)
+    #     t += c
+    #     s += test(net)
+    # print(s/10)
+    # print(t/10)
     #simulate:
     # simulations = 1
     # values = np.zeros(n_iterations)

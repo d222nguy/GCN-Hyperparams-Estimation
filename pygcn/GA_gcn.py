@@ -79,7 +79,7 @@ def a_random(param):
         return random.uniform(cf.weight_decay_low, cf.weight_decay_high)
     elif param == "epochs":
         return random.uniform(cf.epochs_low, cf.epochs_high)
-def winsorize(indi):
+def cut_tail(indi):
     indi["n_hidden"] = int(min(cf.n_hidden_high, max(indi["n_hidden"], cf.n_hidden_low)))
     indi["dropout"] = min(cf.dropout_high, max(indi["dropout"], cf.dropout_low))
     indi["epochs"] = int(min(cf.epochs_high, max(indi["epochs"], cf.epochs_low)))
@@ -92,43 +92,30 @@ def gcn_mutation(A):
         if p < cf.mutation_rate:
             phi = random.uniform(0, 1)
             A[param] = A[param]*phi + (a_random(param))*(1 - phi)
-    return winsorize(A)
-def get_fitness(network, n_tries):
-    s = 0
-    #Adaptive n_tries
-    for i in range(n_tries):
-        p, _ = train(network)
-        if (p < cf.fitness_cutoff):
-            return p
-        s += p
-    s /= n_tries
+    return cut_tail(A)
+def get_fitness(network):
+    s, _ = train(network)
     return s
-def get_fitness_time(network, n_tries):
-    s = 0
-    t = 0
-    #Adaptive n_tries
-    for i in range(n_tries):
-        p, a = train(network)
-        s += p
-        t += max(a/time_out - 1, 0)
-        if (p < cf.fitness_cutoff):
-            break
-    return s/(i + 1), (s - alpha*t)/(i + 1), t/(i + 1)
+def get_fitness_time(network):
+    s, a = train(network)
+    t = max(a/time_out - 1, 0)
+    return (s - alpha*t), s, a
 def train(network):
     t_total = time.time()
-    #network.make_model()
     model = network.model
     optimizer = network.optimizer
     losses_val = []
-    #train
+    #pull out params for easier use
     epochs = network.params["epochs"]  
     torch.cuda.manual_seed(network.params["seed"])
     torch.manual_seed(network.params["seed"])
     np.random.seed(network.params["seed"])
+    
     iter_since_best = 0
     best_loss_val = 10**9
     #min_epoch_ = min(min_epoch, epochs)
     for i in range(epochs):
+        #train
         t = time.time()
         model.train()
         optimizer.zero_grad()
@@ -137,10 +124,11 @@ def train(network):
         acc_train = accuracy(output[idx_train], labels[idx_train])
         loss_train.backward()
         optimizer.step()
-
+        #evaluate on validation set
         model.eval()
         output = model(features, adj)
         loss_val = F.nll_loss(output[idx_val], labels[idx_val])
+        #count number of iterations since best loss
         if (loss_val.item() < best_loss_val):
             iter_since_best = 0
             best_loss_val = loss_val.item()
@@ -148,37 +136,27 @@ def train(network):
             iter_since_best += 1
         losses_val.append(loss_val.item())
         acc_val = accuracy(output[idx_val], labels[idx_val])
+        #early stop
         if i > min_epoch and iter_since_best > early_stop:
             print("Early stopping at...", i, " over ", epochs)
             break
-    #print('Time: ', time.time() - t_total)
     return acc_val.item(), time.time() - t_total
-        # print('Epoch: {:04d}'.format(i+1),
-        #     'loss_train: {:.4f}'.format(loss_train.item()),
-        #     'acc_train: {:.4f}'.format(acc_train.item()),
-        #     'loss_val: {:.4f}'.format(loss_val.item()),
-        #     'acc_val: {:.4f}'.format(acc_val.item()),
-        #     'time: {:.4f}s'.format(time.time() - t))
-    # print("Optimization Finished!")
-    # print("Total time elapsed: {:.4f}s".format(time.time() - t_total))
 def sorted_by_fitness_population(population):
     return sorted(population, key = lambda x: x["fitness"])
 def choice_by_fitness(sorted_population, prob):
     return choice(sorted_population, p = prob)
 def fitness(indi):
-    #return indi["acc_val"]/(1 - indi["acc_val"])
     return indi["fitness"]
 def gcn_make_next_generation(sorted_population, size):
     fitness_sum = 0
     p = [-1 for i in range(len(sorted_population))]
     new_population = []
+    min_fitness = fitness(sorted_population[0]) - cf.epsilon
     for i in range(len(sorted_population)):
-        fitness_sum += (fitness(sorted_population[i]) - fitness(sorted_population[0]))  #fitness(sorted_population[i])
+        fitness_sum += (fitness(sorted_population[i]) - min_fitness)  #fitness(sorted_population[i])
     for i in range(len(sorted_population)):
         #p[i] = fitness(sorted_population[i])/fitness_sum
-        p[i] = (fitness(sorted_population[i]) - fitness(sorted_population[0]))/fitness_sum
-
-    #When fitnesses range are close, top individuals should be rewarded more
+        p[i] = (fitness(sorted_population[i]) - min_fitness)/(fitness_sum)
 
     #print(p)
     for i in range(size):
@@ -208,54 +186,94 @@ def print_statistics(population):
     print("Average fitness: ", np.mean(f))
     print("Medium fitness: ", np.median(f))
 def short_print(indi):
-    # print("n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, accuracy: {:.3f}, time: {:.3f}, fitness: {:.3f}".format(
-    #     indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["acc_val"], indi["time"], indi["fitness"]
+    # print("epochs: {:.2f}, n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, accuracy: {:.3f}, time: {:.3f}, fitness: {:.3f}".format(
+    #     indi["epochs"], indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["acc_val"], indi["time"], indi["fitness"]
     # ))
      print("epochs: {:.2f}, n_hidden: {:.2f}, dropout: {:.3f}, weight_decay: {:.5f}, lr: {:.4f}, fitness: {:.3f}".format(
         indi["epochs"], indi["n_hidden"], indi["dropout"], indi["weight_decay"], indi["lr"], indi["fitness"]
     ))
-def run_ga(optimality_tracking, values, best, optimal_sol):
+def print_population(population):
+    for indi in population:
+        short_print(indi)
+def update_best(population, best, optimal_sol):
+    if population[-1]["fitness"] > best:
+        best = population[-1]["fitness"]
+        print("best = ", best)
+        optimal_sol = population[-1]
+    return best, optimal_sol
+def run(indi):
+    net = NetworkInstance(**indi)
+    if cf.countTime:
+        indi["fitness"], indi["acc_val"], indi["time"] = get_fitness_time(net)
+    else:
+        indi["fitness"] = get_fitness(net)
+def run_ga(values, best, optimal_sol, countTime):
     population = gcn_generate_population(size)
+    times = []
+    optimality_tracking = []
+    t = time.time()
     for i in range(generations):
         print("--Generation ", i)
         for indi in population:
-            net = NetworkInstance(**indi)
-            #indi["acc_val"], indi["fitness"], indi["time"] = get_fitness_time(net, 2)
-            indi["fitness"] = get_fitness(net, 1)
+            run(indi)      
         population = sorted_by_fitness_population(population)
-        for indi in population:
-            short_print(indi)
+        print_population(population)
         print_statistics(population)
-        if population[-1]["fitness"] > best:
-            best = population[-1]["fitness"]
-            print("best = ", best)
-            optimal_sol = population[-1]
+        best, optimal_sol = update_best(population, best, optimal_sol)
         optimality_tracking.append(best)
         if (i != generations - 1):
             population = gcn_make_next_generation(population, size)
+        times.append(time.time() - t)
     print(optimality_tracking)
+    print(times)
     values += np.array(optimality_tracking)
     print('best = ', best)
-    return optimality_tracking, values, best, optimal_sol
+    return values, best, optimal_sol, times
 def simulate():
     values = np.zeros(generations)
     itr = range(generations)
     optimal_sol = gcn_generate_individual()
     best = 0
+    times_total = np.zeros(generations)
     for s in range(simulations):
-        optimality_tracking = []
         print("===================Simulation- {0}===================".format(s))
-        optimality_tracking, values, best, optimal_sol = run_ga(optimality_tracking, values, best, optimal_sol)
-    #optimal_sol["epochs"] = 200
+        values, best, optimal_sol, times = run_ga(values, best, optimal_sol, countTime = False)
+        times_total += times
+    times_total /= simulations
+    # plt.plot(itr, times_total, lw = 0.5)
+    # plt.xlabel("Generations")
+    # plt.ylabel("Times taken")
+    # plt.show()
+
+    # times_total_2 = np.zeros(generations)
+    # for s in range(simulations):
+    #     optimality_tracking = []
+    #     print("===================Simulation- {0}===================".format(s))
+    #     optimality_tracking, values, best, optimal_sol, times = run_ga(optimality_tracking, values, best, optimal_sol, countTime = True)
+    #     times_total_2 += times
+    # #times_total = np.array(times_total)
+    # times_total /= simulations
+    # print(times_total)
+    # print(times_total_2)
+    # plt.plot(itr, times_total, label = "old approach")
+    # plt.plot(itr, times_total_2, label = "new approach")
+    # plt.xlabel("Generations")
+    # plt.ylabel("Times taken")
+    # plt.legend(loc = "upper left")
+    # plt.show()
+
+    
     print('best = ', best)
-    print('optimal_sol = ', optimal_sol)
-    s = 0
+    print('optimal_sol = ', (optimal_sol))
+    acc = 0
+    time_taken = 0
     for i in range(10):
         net = NetworkInstance(**optimal_sol)
-        train(net)
-        s += test(net)
-    s /= 100
-    print(s)
+        _, t = train(net)
+        time_taken += t
+        acc += test(net)
+    print('Test accuracy: ', acc/10)
+    print('Training time: ', time_taken/10)
     values /= simulations
     plt.plot(itr, values, lw = 0.5)
     plt.show()
@@ -274,53 +292,23 @@ if __name__ == '__main__':
     idx_train = idx_train.cuda()
     idx_val = idx_val.cuda()
     idx_test = idx_test.cuda()
+
+    nfeat = features.shape[1]
+    nclass = labels.max().item() + 1
     
-    params = {}
-    params["nfeat"] = features.shape[1]
-    params["nclass"] = labels.max().item() + 1
-    nfeat = params["nfeat"]
-    nclass = params["nclass"]
-    simulate()
-    # res = 0
-    # params["epochs"] = 200
-    # params["n_hidden"] = 88
-    # params["dropout"] = 0.6242
-    # params["weight_decay"] = -3.2576
-    # params["lr"] = -1.8697
+    # params["epochs"] = 128
+    # params["n_hidden"] = 62
+    # params["dropout"] = 0.830
+    # params["weight_decay"] = -3.323
+    # params["lr"] = -2.364
     # params["seed"] = cf.seed
-    # net = NetworkInstance(**params)
-    # for i in range(20):
-    #     net.make_model()
-    #     train(net)
-    #     res += test(net)
-    # res /= 20
-    # print(res)
-    # for i in range(100):
-    #     a = gcn_sample_individual()
-    #     net = NetworkInstance(**a)
-    #     a, b, c = get_fitness_time(net, 3)
-    #     print('time: ', c)
-
-
-    # generations = 10
-    # size = 30
-    # population = gcn_generate_population(20)
+    # s = 0
+    # t = 0
     # for i in range(10):
-    #     print("=================================Gen #{0}===========================================".format(i))
-    #     print(len(population))
-    #     for indi in population:
-    #         net = NetworkInstance(**indi)
-    #         #train(net)
-    #         indi["acc_val"] = train(net)
-    #         #indi["acc_test"] = test(net)
-    #     population = sorted_by_fitness_population(population)
-    #     for indi in population:
-    #         #print(indi)
-    #         short_print(indi)
-    #     print_statistics(population)
-    #     if (i != 9):
-    #         population = gcn_make_next_generation(population)
-    # population[-1]["epochs"] = 100
-    # net = NetworkInstance(**(population[-1]))
-    # train(net)
-    # print(test(net))
+    #     net = NetworkInstance(**params)
+    #     a, c = train(net)
+    #     t += c
+    #     s += test(net)
+    # print(s/10)
+    # print(t/10)
+    simulate()
