@@ -240,28 +240,6 @@ def simulate():
         values, best, optimal_sol, times = run_ga(values, best, optimal_sol, countTime = False)
         times_total += times
     times_total /= simulations
-    # plt.plot(itr, times_total, lw = 0.5)
-    # plt.xlabel("Generations")
-    # plt.ylabel("Times taken")
-    # plt.show()
-
-    # times_total_2 = np.zeros(generations)
-    # for s in range(simulations):
-    #     optimality_tracking = []
-    #     print("===================Simulation- {0}===================".format(s))
-    #     optimality_tracking, values, best, optimal_sol, times = run_ga(optimality_tracking, values, best, optimal_sol, countTime = True)
-    #     times_total_2 += times
-    # #times_total = np.array(times_total)
-    # times_total /= simulations
-    # print(times_total)
-    # print(times_total_2)
-    # plt.plot(itr, times_total, label = "old approach")
-    # plt.plot(itr, times_total_2, label = "new approach")
-    # plt.xlabel("Generations")
-    # plt.ylabel("Times taken")
-    # plt.legend(loc = "upper left")
-    # plt.show()
-
     
     print('best = ', best)
     print('optimal_sol = ', (optimal_sol))
@@ -285,7 +263,6 @@ if __name__ == '__main__':
     torch.manual_seed(cf.seed) #seed for training GCN, keep it the same as in original paper
     random.seed(1) # this is seed for GA
     adj, features, labels, idx_train, idx_val, idx_test = load_data("cora")
-
     features = features.cuda()
     adj = adj.cuda()
     labels = labels.cuda()
@@ -295,20 +272,4 @@ if __name__ == '__main__':
 
     nfeat = features.shape[1]
     nclass = labels.max().item() + 1
-    
-    # params["epochs"] = 128
-    # params["n_hidden"] = 62
-    # params["dropout"] = 0.830
-    # params["weight_decay"] = -3.323
-    # params["lr"] = -2.364
-    # params["seed"] = cf.seed
-    # s = 0
-    # t = 0
-    # for i in range(10):
-    #     net = NetworkInstance(**params)
-    #     a, c = train(net)
-    #     t += c
-    #     s += test(net)
-    # print(s/10)
-    # print(t/10)
     simulate()
